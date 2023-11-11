@@ -78,7 +78,7 @@ allocproc(void)
   char *sp;
 
   acquire(&ptable.lock);
-
+  
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if(p->state == UNUSED)
       goto found;
@@ -89,6 +89,10 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+
+  // Set priority to 5
+  p->priority = 5;
+  p->count = 0;
 
   release(&ptable.lock);
 
@@ -125,7 +129,6 @@ userinit(void)
   extern char _binary_initcode_start[], _binary_initcode_size[];
 
   p = allocproc();
-  
   initproc = p;
   if((p->pgdir = setupkvm()) == 0)
     panic("userinit: out of memory?");
@@ -200,6 +203,9 @@ fork(void)
   np->sz = curproc->sz;
   np->parent = curproc;
   *np->tf = *curproc->tf;
+
+  // Set priority to parent's priority
+  np->priority = curproc->priority;
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
@@ -312,6 +318,110 @@ wait(void)
   }
 }
 
+// set_proc_priority 시스템 콜
+int set_proc_priority(int pid, int priority)
+{
+  struct proc *p;
+  int priority_return = -1;
+
+  if(priority < 1 || priority > 10)
+    return priority_return;
+  acquire(&ptable.lock);
+
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  {
+    if(p->pid == pid)
+    {
+      priority_return = p->priority;
+      p->priority = priority;
+      break;
+    }
+  }
+
+  release(&ptable.lock);
+  return priority_return;
+}
+
+// get_proc_priority 시스템 콜
+int get_proc_priority(int pid)
+{
+  struct proc *p;
+  int priority_return = -1;
+
+  if(pid < 0)
+    return priority_return;
+
+  acquire(&ptable.lock);
+
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  {
+    if(p->pid == pid)
+    {
+      priority_return = p->priority;
+      break;
+    }
+  }
+
+  release(&ptable.lock);
+  return priority_return;
+}
+
+//가장 중요도가 높은(priority가 낮은) 프로세스의 주소를 반환하는 함수
+int highest_priority_process(void)
+{
+  struct proc *p = 0;
+  struct proc *return_proc = 0;
+  long highest_priority= __INT_MAX__;
+
+   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->state != RUNNABLE)
+        continue;
+      if (p->priority < highest_priority)
+      {
+        highest_priority = p->priority;
+        return_proc = p;
+      }
+  }
+  return return_proc;
+}
+
+// priority가 가장 낮은 프로세스의 priority를 1 감소시키는 함수
+void resize_priority(struct proc *cur_proc)
+{
+  struct proc *p = 0;
+  struct proc *least_priority_proc = 0;
+  long least_priority = 0;
+
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->state != RUNNABLE)
+        continue;
+      if (p->priority > least_priority)
+      {
+        least_priority = p->priority;
+        least_priority_proc = p;
+      }
+      // priority가 같은 프로세스가 있을 경우 count가 가장 작은 프로세스를 선택한다.
+      if (p->priority == least_priority)
+      {
+        if (least_priority_proc && p->count < least_priority_proc->count)
+          least_priority_proc = p;  
+      }
+  }
+  if (least_priority_proc && least_priority_proc->priority > 1)
+    (least_priority_proc->priority) -= 1;
+}
+
+void reset_priority()
+{
+  struct proc *p = 0;
+  int count = 0;
+
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->state != RUNNABLE)
+        continue;
+      p->priority = 5;
+  }
+}
 //PAGEBREAK: 42
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
@@ -320,9 +430,13 @@ wait(void)
 //  - swtch to start running that process
 //  - eventually that process transfers control
 //      via swtch back to the scheduler.
+
 void
 scheduler(void)
 {
+  // 프로세스를 실행 100번 단위로 우선순위를 1씩 증가시키기 위한 상수
+  const long priority_slice = 100;
+
   struct proc *p;
   struct cpu *c = mycpu();
   c->proc = 0;
@@ -333,28 +447,70 @@ scheduler(void)
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
 
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
-
-      swtch(&(c->scheduler), p->context);
-      switchkvm();
-
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;
+    p = highest_priority_process();
+    if (!p)
+    {
+      // reset_priority();
+      release(&ptable.lock);
+      continue;
     }
-    release(&ptable.lock);
+    // Switch to chosen process.  It is the process's job
+    // to release ptable.lock and then reacquire it
+    // before jumping back to us.
+    c->proc = p;
+    switchuvm(p);
+    p->state = RUNNING;
 
+    (p->count)++;
+    swtch(&(c->scheduler), p->context);
+    switchkvm();
+
+    // 프로세스 count가 priority_slice만큼 돌 때 마다 aging을 진행한다.
+    if (p->count % priority_slice == 0)
+      resize_priority(p);
+    // Process is done running for now.
+    // It should have changed its p->state before coming back.
+    c->proc = 0;
+    release(&ptable.lock);
   }
 }
+
+// void
+// scheduler(void)
+// {
+//   struct proc *p;
+//   struct cpu *c = mycpu();
+//   c->proc = 0;
+  
+//   for(;;){
+//     // Enable interrupts on this processor.
+//     sti();
+
+//     // Loop over process table looking for process to run.
+//     acquire(&ptable.lock);
+//     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+//       if(p->state != RUNNABLE)
+//         continue;
+
+//       // Switch to chosen process.  It is the process's job
+//       // to release ptable.lock and then reacquire it
+//       // before jumping back to us.
+//       c->proc = p;
+//       switchuvm(p);
+//       p->state = RUNNING;
+
+//       swtch(&(c->scheduler), p->context);
+//       switchkvm();
+
+//       // Process is done running for now.
+//       // It should have changed its p->state before coming back.
+//       c->proc = 0;
+//     }
+//     release(&ptable.lock);
+
+//   }
+// }
 
 // Enter scheduler.  Must hold only ptable.lock
 // and have changed proc->state. Saves and restores
@@ -555,6 +711,9 @@ int forknexec(const char *path, const char **args)
   np->sz = curproc->sz;
   np->parent = curproc;
   *np->tf = *curproc->tf;
+
+  // Set priority to parent's priority
+  np->priority = curproc->priority;
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;

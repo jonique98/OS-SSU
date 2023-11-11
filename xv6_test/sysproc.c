@@ -90,3 +90,25 @@ sys_uptime(void)
   return xticks;
 }
 
+int
+sys_set_proc_priority(void)
+{
+  int pid;
+  int priority;
+
+  if(argint(0, &pid) < 0 || argint(1, &priority) < 0)
+    return -1;
+  return set_proc_priority(pid, priority);
+}
+
+int
+sys_get_proc_priority(void)
+{
+  int pid;
+
+  if(argint(0, &pid) < 0)
+    return -1;
+  return get_proc_priority(pid);
+}
+
+

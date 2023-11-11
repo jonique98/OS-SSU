@@ -185,6 +185,7 @@ UPROGS=\
 	_helloworld\
 	_forknexectest\
 	_forknexectest_err\
+	_sched_test\
 
 
 fs.img: mkfs README $(UPROGS)
