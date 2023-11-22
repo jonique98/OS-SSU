@@ -91,6 +91,12 @@ sys_uptime(void)
 }
 
 int
+sys_process_info(void)
+{
+  return process_info();
+}
+
+int
 sys_set_proc_priority(void)
 {
   int pid;
@@ -109,6 +115,16 @@ sys_get_proc_priority(void)
   if(argint(0, &pid) < 0)
     return -1;
   return get_proc_priority(pid);
+}
+
+int
+sys_get_proc_count(void)
+{
+  int pid;
+
+  if(argint(0, &pid) < 0)
+    return -1;
+  return get_proc_count(pid);
 }
 
 

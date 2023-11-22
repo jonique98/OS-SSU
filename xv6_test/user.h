@@ -26,6 +26,8 @@ int uptime(void);
 int forknexec(const char*, const char**);
 int set_proc_priority(int, int);
 int get_proc_priority(int);
+int get_proc_count(int);
+int process_info(void);
 
 // ulib.c
 int stat(const char*, struct stat*);
