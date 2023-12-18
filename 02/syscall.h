@@ -21,8 +21,3 @@
 #define SYS_mkdir  20
 #define SYS_close  21
 #define SYS_forknexec 22
-#define SYS_set_proc_priority 23
-#define SYS_get_proc_priority 24
-#define SYS_get_proc_count 25
-#define SYS_process_info 26
-#define SYS_getNumFreePages 27

@@ -23,11 +23,6 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
-int forknexec(const char*, const char**);
-int set_proc_priority(int, int);
-int get_proc_priority(int);
-int get_proc_count(int);
-int process_info(void);
 int getNumFreePages(void);
 
 // ulib.c

@@ -7,11 +7,6 @@
 #include "mmu.h"
 #include "proc.h"
 
-int sys_getNumFreePages(void)
-{
-  return getNumFreePages();
-}
-
 int
 sys_fork(void)
 {
@@ -131,5 +126,3 @@ sys_get_proc_count(void)
     return -1;
   return get_proc_count(pid);
 }
-
-

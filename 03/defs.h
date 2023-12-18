@@ -68,12 +68,6 @@ char*           kalloc(void);
 void            kfree(char*);
 void            kinit1(void*, void*);
 void            kinit2(void*, void*);
-void            freerange(void*, void*);
-unsigned int 		getNumFreePages(void);
-void						inc_refcount(uint p);
-void						dec_refcount(uint p);
-unsigned int 		get_refcount(uint p);
-
 
 // kbd.c
 void            kbdintr(void);

@@ -416,6 +416,39 @@ void pagefault()
     lcr3(V2P(myproc()->pgdir));
 }
 
+// void pagefault(uint err_code)
+// {
+//   uint pagefault_vaddr = rcr2();
+//   if(pagefault < 0){
+//     panic("pagefault: rcr2 < 0");
+//     return;
+//   } 
+//   pte_t *pte;
+//   uint rc, pa;
+
+//   pte = walkpgdir(myproc()->pgdir, (void*)pagefault_vaddr, 0);
+
+//   pa = PTE_ADDR(*pte);
+//   rc = get_refcount(pa);
+
+//   if(rc == 1){
+//     *pte |= PTE_W;
+//     lcr3(V2P(myproc()->pgdir));
+//     return;
+//   }
+//   if (rc > 1){
+//     char *mem = kalloc();
+//     if(mem == 0){
+//       panic("pagefault: kalloc failed");
+//       return;
+//     }
+//     memmove(mem, (char*)P2V(pa), PGSIZE);
+//     *pte = V2P(mem) | PTE_P | PTE_U | PTE_W;
+//     dec_refcount(pa);
+//     lcr3(V2P(myproc()->pgdir));
+//     return ;
+//   }
+// }
 
 //PAGEBREAK!
 // Blank page.
